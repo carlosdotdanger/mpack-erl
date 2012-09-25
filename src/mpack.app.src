@@ -1,0 +1,11 @@
+{application, mpack,
+ [
+  {description, "messagepack serializer"},
+  {vsn, git},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.

@@ -1,6 +1,6 @@
 -module (mpack).
 -include ("mpack.hrl").
--export ([pack/1,unpack/1]).
+-export ([pack/1,unpack/1,chk_msg/1]).
 
 %%API
 unpack(Dat)->
@@ -122,3 +122,86 @@ dcode_map(Dat,Sz,Acc)->
 	{ok,Key,LessDat} = dcode(Dat),
 	{ok,Val,EvenLessDat} = dcode(LessDat),	
 	dcode_map(EvenLessDat,Sz-1,queue:in({Key,Val},Acc)).
+
+
+%checks source for valid format/length
+chk_msg(<<>>) ->
+	{error,empty};
+chk_msg(Dat) when is_binary(Dat) ->
+    case chk_read(Dat) of
+    	{ok,<<>>} -> ok;
+    	Err -> {error,Err}
+    end;
+chk_msg(Dat)->
+	{error,{not_packed,Dat}}.
+chk_read(Dat)->
+    <<Byte:1/binary,Left/binary>> = Dat,
+	chk_read(Byte,Left).
+chk_read(<<?NIL>>,Dat) 		-> 	{ok,Dat};
+chk_read(<<?FALSE>>,Dat)	-> 	{ok,Dat};
+chk_read(<<?TRUE>>,Dat)	 	-> 	{ok,Dat};
+chk_read(<<?FLOAT>>,Dat) 	->  next_bytes(4,Dat);
+chk_read(<<?DOUBLE>>,Dat) 	-> 	next_bytes(8,Dat);
+chk_read(<<?UINT_8>>,Dat) 	-> 	next_bytes(1,Dat);
+chk_read(<<?UINT_16>>,Dat) 	->  next_bytes(2,Dat);
+chk_read(<<?UINT_32>>,Dat) 	->	next_bytes(4,Dat);
+chk_read(<<?UINT_64>>,Dat)  ->	next_bytes(8,Dat);
+chk_read(<<?INT_8>>,Dat) 	-> 	next_bytes(1,Dat);
+chk_read(<<?INT_16>>,Dat) 	->  next_bytes(2,Dat);
+chk_read(<<?INT_32>>,Dat) 	->	next_bytes(4,Dat);
+chk_read(<<?INT_64>>,Dat)   ->	next_bytes(8,Dat);
+chk_read(<<?RAW_16>>,Dat) ->
+    <<Sz:16/big-unsigned-integer,Left/binary>> = Dat,
+    next_bytes(Sz,Left);
+chk_read(<<?RAW_32>>,Dat) ->
+    <<Sz:32/big-unsigned-integer,Left/binary>> = Dat,
+    next_bytes(Sz,Left);
+chk_read(<<?ARR_16>>,Dat) ->
+    <<Sz:16/big-unsigned-integer,Left/binary>> = Dat,
+    chk_read_arr(Left,Sz);
+chk_read(<<?ARR_32>>,Dat) ->
+    <<Sz:32/big-unsigned-integer,Left/binary>> = Dat,
+    chk_read_arr(Left,Sz);
+chk_read(<<?MAP_16>>,Dat) ->
+    <<Sz:16/big-unsigned-integer,Left/binary>> = Dat,
+    chk_read_map(Left,Sz);
+chk_read(<<?MAP_32>>,Dat) ->
+    <<Sz:32/big-unsigned-integer,Left/binary>> = Dat,
+    chk_read_map(Left,Sz);
+chk_read(<<?FIX_NEG,_Val:5>>,Dat) 	-> {ok,Dat};
+chk_read(<<?FIX_POS,_Val:7>>,Dat) 	-> {ok,Dat};
+chk_read(<<?FIX_MAP,Sz:4>>,  Dat) 	-> chk_read_map(Dat,Sz);
+chk_read(<<?FIX_ARR,Sz:4>>,  Dat) 	-> chk_read_arr(Dat,Sz);
+chk_read(<<?FIX_RAW,Sz:5>> , Dat) 	->
+    case Sz of
+    	%empty strings happen!
+        0 -> {ok,Dat};
+        _ -> next_bytes(Sz,Dat)
+    end;
+chk_read(Err,Dat) ->
+    {badarg,[Err,Dat]}.
+
+chk_read_arr(Dat,0) -> {ok,Dat};
+chk_read_arr(<<>>,Sz) -> {truncated_array,Sz};
+chk_read_arr(Dat,Sz)->
+    case chk_read(Dat) of
+        {ok,Left} -> chk_read_arr(Left,Sz-1);
+        Err -> Err
+    end.
+
+chk_read_map(Dat,0) -> {ok,Dat};
+chk_read_map(<<>>,Sz) -> {truncated_map,Sz};
+chk_read_map(Dat,Sz)->
+    case chk_read(Dat) of
+        {ok,Left1} ->
+            case chk_read(Left1) of
+                {ok,Left2} ->
+                	chk_read_map(Left2,Sz-1);
+                Err -> Err
+            end;
+        Err -> Err
+    end.
+
+next_bytes(X,Dat)->
+	<<_Thing:X/binary,Left/binary>> = Dat,
+	{ok,Left}.

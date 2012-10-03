@@ -1,6 +1,6 @@
 -module(mpack_tests).
 
--import(mpack, [pack/1, unpack/1]).
+-import(mpack, [pack/1, unpack/1,chk_msg/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -50,6 +50,14 @@ binary_test_() ->
         {"fix",   assert_pack(<<1,2,3>>)}
     ].
 
+msg_chk_test_()->
+    [
+        {"good_chk", assert_chk(small())},
+        {"not_packed", assert_chk_fail(small())},
+        {"invalid_bin", assert_chk_fail(small_bin())},
+        {"truncated", assert_chk_fail(small(),128)}
+    ].
+
 %HELPERZ
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 assert_pack(Term)->
@@ -67,3 +75,24 @@ assert_unpack_error(Bin)->
     fun() -> 
         ?assertMatch({error,{badarg, _ } }, unpack(Bin))
     end.
+
+assert_chk(Val) ->
+    fun() ->
+        ?assertEqual(ok,chk_msg(pack(Val)))
+    end.
+
+assert_chk_fail(Val)->
+    fun() ->
+        ?assertMatch({error,{_,_}},chk_msg(Val))
+    end.
+assert_chk_fail(Val,Clip)->
+    fun() ->
+        <<H:Clip/binary,_T/binary>> = pack(Val),
+        ?assertMatch({error,{_,_}},chk_msg(H))
+    end.
+
+small()->
+    [<<"hello">>,45,[{<<"I am">>,<<"a prop list">>},{24,9.7}],lists:seq(1,100)].
+
+small_bin()->
+    <<"hello stranger!">>.

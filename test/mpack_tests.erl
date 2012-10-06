@@ -97,7 +97,7 @@ assert_chk_trnc(Val,Clip)->
     end.
 
 small()->
-    [<<"hello">>,45,[{<<"I am">>,<<"a prop list">>},{24,9.7}],lists:seq(1,100)].
+    [<<"hello">>,45,[{<<"I am">>,<<"a prop list">>},{24,9.7},{<<"jasjd">>,98732899999}],lists:seq(1,100)].
 
 rather_large(N)-> [ small() || _X <- lists:seq(1,N)].
 

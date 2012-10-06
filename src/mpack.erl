@@ -134,6 +134,8 @@ chk_msg(Dat) when is_binary(Dat) ->
     end;
 chk_msg(Dat)->
 	{error,{not_packed,Dat}}.
+chk_read(<<>>)->
+	{truncated,<<>>};
 chk_read(Dat)->
     <<Byte:1/binary,Left/binary>> = Dat,
 	chk_read(Byte,Left).
@@ -182,7 +184,7 @@ chk_read(Err,Dat) ->
     {badarg,[Err,Dat]}.
 
 chk_read_arr(Dat,0) -> {ok,Dat};
-chk_read_arr(<<>>,Sz) -> {truncated_array,Sz};
+chk_read_arr(<<>>,Sz) -> {truncated,Sz};
 chk_read_arr(Dat,Sz)->
     case chk_read(Dat) of
         {ok,Left} -> chk_read_arr(Left,Sz-1);
@@ -190,7 +192,7 @@ chk_read_arr(Dat,Sz)->
     end.
 
 chk_read_map(Dat,0) -> {ok,Dat};
-chk_read_map(<<>>,Sz) -> {truncated_map,Sz};
+chk_read_map(<<>>,Sz) -> {truncated,Sz};
 chk_read_map(Dat,Sz)->
     case chk_read(Dat) of
         {ok,Left1} ->
